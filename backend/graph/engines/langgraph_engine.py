@@ -128,7 +128,7 @@ class LangGraphEngine(BaseEngine):
                         if isinstance(m, ToolMessage):
                             yield AgentEvent(
                                 type="tool_end",
-                                data={"tool": "tool", "output": m.content},
+                                data={"tool": getattr(m, "name", "tool"), "output": m.content},
                             )
                     yield AgentEvent(type="new_response", data={})
 

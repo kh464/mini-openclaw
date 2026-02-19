@@ -24,8 +24,8 @@ def test_chat_endpoint_returns_error_without_llm():
             "session_id": sid,
             "stream": False,
         })
-        # Should either return error or work depending on LLM init
-        assert resp.status_code == 200
+        # LLM is not initialized in test env -> 503
+        assert resp.status_code == 503
 
 
 def test_chat_request_model():

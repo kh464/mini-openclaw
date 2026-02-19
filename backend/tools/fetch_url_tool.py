@@ -12,10 +12,11 @@ TIMEOUT = 15
 def create_fetch_url_tool() -> BaseTool:
 
     @lc_tool
-    def fetch_url(url: str) -> str:
+    async def fetch_url(url: str) -> str:
         """Fetch a URL and return its content as clean Markdown text."""
         try:
-            resp = httpx.get(url, timeout=TIMEOUT, follow_redirects=True)
+            async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=True) as client:
+                resp = await client.get(url)
             resp.raise_for_status()
             content_type = resp.headers.get("content-type", "")
 

@@ -8,7 +8,7 @@ async def retrieve_node(state: dict) -> dict:
         return state
 
     query = state["messages"][-1].content if state["messages"] else ""
-    docs = retriever.invoke(query)
+    docs = await retriever.ainvoke(query)
 
     if docs:
         context_parts = [f"[{i+1}] {d.page_content[:500]}" for i, d in enumerate(docs[:3])]

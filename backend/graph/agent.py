@@ -10,7 +10,7 @@ from config import AppConfig, load_config
 from graph.engines.base import BaseEngine, AgentEvent
 from graph.prompt_builder import PromptBuilder
 from graph.session_manager import SessionManager
-from providers.registry import get_llm, get_embeddings
+from providers.registry import get_llm
 from tools import get_all_tools
 from tools.skills_scanner import write_snapshot
 
@@ -83,7 +83,7 @@ class AgentManager:
 
 def _lc_tool_to_openai_schema(tool) -> dict:
     """Convert LangChain tool to OpenAI function-calling schema."""
-    schema = tool.args_schema.schema() if hasattr(tool, "args_schema") and tool.args_schema else {}
+    schema = tool.args_schema.model_json_schema() if hasattr(tool, "args_schema") and tool.args_schema else {}
     return {
         "type": "function",
         "function": {

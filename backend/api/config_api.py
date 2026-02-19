@@ -1,7 +1,7 @@
 # backend/api/config_api.py
 """Configuration APIs -- RAG mode, engine, memory backend switching."""
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from config import save_config
@@ -32,7 +32,7 @@ async def get_engine(request: Request):
 async def set_engine(req: EngineUpdate, request: Request):
     am = request.app.state.agent_manager
     if req.engine not in ("create_agent", "langgraph", "raw_loop"):
-        return {"error": f"Invalid engine: {req.engine}"}
+        raise HTTPException(status_code=400, detail=f"Invalid engine: {req.engine}")
     am.config.agent_engine = req.engine
     save_config(am.config)
     return {"engine": am.config.agent_engine}
@@ -49,7 +49,7 @@ async def get_memory_backend(request: Request):
 async def set_memory_backend(req: MemoryBackendUpdate, request: Request):
     am = request.app.state.agent_manager
     if req.backend not in ("native", "mem0"):
-        return {"error": f"Invalid backend: {req.backend}"}
+        raise HTTPException(status_code=400, detail=f"Invalid backend: {req.backend}")
     am.config.memory_backend = req.backend
     save_config(am.config)
     return {"backend": am.config.memory_backend}

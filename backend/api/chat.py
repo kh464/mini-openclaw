@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -23,7 +23,7 @@ async def chat(req: ChatRequest, request: Request):
     agent_manager = request.app.state.agent_manager
 
     if not agent_manager.llm:
-        return {"error": "Agent not initialized. Configure LLM provider in .env"}
+        raise HTTPException(status_code=503, detail="Agent not initialized. Configure LLM provider in .env")
 
     # Save user message
     agent_manager.session_manager.save_message(req.session_id, "user", req.message)

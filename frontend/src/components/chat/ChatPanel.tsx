@@ -9,10 +9,10 @@ export default function ChatPanel() {
   const { state } = useStore();
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom when new messages are added
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [state.messages]);
+  }, [state.messages.length]);
 
   return (
     <div className="flex flex-col h-full">

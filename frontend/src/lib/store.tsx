@@ -193,7 +193,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               });
               break;
             case "new_response":
-              fullContent = "";
+              // Keep accumulated content; new tokens will append to it
               break;
             case "done":
               break;

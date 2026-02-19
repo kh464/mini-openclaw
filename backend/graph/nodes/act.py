@@ -18,4 +18,4 @@ async def act_node(state: dict) -> dict:
             result = f"Error: unknown tool '{tc['name']}'"
         messages.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
 
-    return {"messages": messages}
+    return {"messages": messages, "iteration": state.get("iteration", 0) + 1}

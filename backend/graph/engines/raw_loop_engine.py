@@ -56,7 +56,7 @@ class RawLoopEngine(BaseEngine):
 
                 executor = self.tool_executor.get(fn_name)
                 if executor:
-                    result = await executor(**fn_args) if callable(executor) else str(executor)
+                    result = await executor(fn_args) if callable(executor) else str(executor)
                 else:
                     result = f"Error: unknown tool '{fn_name}'"
 

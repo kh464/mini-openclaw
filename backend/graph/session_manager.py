@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 import uuid
 from pathlib import Path
+
+_SAFE_SID = re.compile(r"^[a-f0-9]{12}$")
 
 
 class SessionManager:
@@ -109,6 +112,8 @@ class SessionManager:
         return merged
 
     def _read(self, sid: str) -> dict:
+        if not _SAFE_SID.match(sid):
+            return {"messages": [], "compressed_context": ""}
         path = self.dir / f"{sid}.json"
         if not path.exists():
             return {"messages": [], "compressed_context": ""}
@@ -119,5 +124,7 @@ class SessionManager:
         return data
 
     def _write(self, sid: str, data: dict):
+        if not _SAFE_SID.match(sid):
+            return
         path = self.dir / f"{sid}.json"
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")

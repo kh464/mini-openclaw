@@ -51,7 +51,11 @@ async def file_tokens(req: FileTokenRequest, request: Request):
     base_dir = request.app.state.base_dir
     results = {}
     for path in req.paths:
-        target = base_dir / path
+        target = (base_dir / path).resolve()
+        # Prevent path traversal
+        if not str(target).startswith(str(base_dir)):
+            results[path] = -1
+            continue
         if target.is_file():
             try:
                 content = target.read_text(encoding="utf-8")

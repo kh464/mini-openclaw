@@ -18,7 +18,7 @@ def test_terminal_blocks_dangerous():
     with tempfile.TemporaryDirectory() as td:
         tool = create_terminal_tool(root_dir=td)
         result = tool.invoke({"command": "rm -rf /"})
-        assert "blocked" in result.lower() or "denied" in result.lower()
+        assert "blocked" in result.lower() or "not in the allowed" in result.lower()
 
 
 def test_read_file():

@@ -1,5 +1,14 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8002";
 
+async function apiFetch(url: string, opts?: RequestInit): Promise<Response> {
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "Unknown error");
+    throw new Error(`API ${res.status}: ${text}`);
+  }
+  return res;
+}
+
 export interface Session {
   id: string;
   title: string;
@@ -21,12 +30,12 @@ export interface SSEEvent {
 
 // Sessions API
 export async function listSessions(): Promise<Session[]> {
-  const res = await fetch(`${API_BASE}/api/sessions`);
+  const res = await apiFetch(`${API_BASE}/api/sessions`);
   return res.json();
 }
 
 export async function createSession(title = "New Chat"): Promise<{ id: string; title: string }> {
-  const res = await fetch(`${API_BASE}/api/sessions`, {
+  const res = await apiFetch(`${API_BASE}/api/sessions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title }),
@@ -35,17 +44,17 @@ export async function createSession(title = "New Chat"): Promise<{ id: string; t
 }
 
 export async function getMessages(sessionId: string): Promise<Message[]> {
-  const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/messages`);
+  const res = await apiFetch(`${API_BASE}/api/sessions/${sessionId}/messages`);
   const data = await res.json();
   return data.messages;
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
-  await fetch(`${API_BASE}/api/sessions/${sessionId}`, { method: "DELETE" });
+  await apiFetch(`${API_BASE}/api/sessions/${sessionId}`, { method: "DELETE" });
 }
 
 export async function renameSession(sessionId: string, title: string): Promise<void> {
-  await fetch(`${API_BASE}/api/sessions/${sessionId}`, {
+  await apiFetch(`${API_BASE}/api/sessions/${sessionId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title }),
@@ -101,9 +110,9 @@ export async function getConfig(): Promise<{
   ragMode: boolean;
 }> {
   const [engine, memory, rag] = await Promise.all([
-    fetch(`${API_BASE}/api/config/engine`).then((r) => r.json()),
-    fetch(`${API_BASE}/api/config/memory-backend`).then((r) => r.json()),
-    fetch(`${API_BASE}/api/config/rag-mode`).then((r) => r.json()),
+    apiFetch(`${API_BASE}/api/config/engine`).then((r) => r.json()),
+    apiFetch(`${API_BASE}/api/config/memory-backend`).then((r) => r.json()),
+    apiFetch(`${API_BASE}/api/config/rag-mode`).then((r) => r.json()),
   ]);
   return {
     engine: engine.engine,
@@ -113,7 +122,7 @@ export async function getConfig(): Promise<{
 }
 
 export async function setEngine(engine: string): Promise<void> {
-  await fetch(`${API_BASE}/api/config/engine`, {
+  await apiFetch(`${API_BASE}/api/config/engine`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ engine }),
@@ -121,7 +130,7 @@ export async function setEngine(engine: string): Promise<void> {
 }
 
 export async function setMemoryBackend(backend: string): Promise<void> {
-  await fetch(`${API_BASE}/api/config/memory-backend`, {
+  await apiFetch(`${API_BASE}/api/config/memory-backend`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ backend }),
@@ -129,7 +138,7 @@ export async function setMemoryBackend(backend: string): Promise<void> {
 }
 
 export async function setRagMode(enabled: boolean): Promise<void> {
-  await fetch(`${API_BASE}/api/config/rag-mode`, {
+  await apiFetch(`${API_BASE}/api/config/rag-mode`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ enabled }),
@@ -143,6 +152,6 @@ export async function getSessionTokens(sessionId: string): Promise<{
   total_tokens: number;
   message_count: number;
 }> {
-  const res = await fetch(`${API_BASE}/api/tokens/session/${sessionId}`);
+  const res = await apiFetch(`${API_BASE}/api/tokens/session/${sessionId}`);
   return res.json();
 }

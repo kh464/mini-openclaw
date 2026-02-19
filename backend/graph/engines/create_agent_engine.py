@@ -64,7 +64,7 @@ class CreateAgentEngine(BaseEngine):
                             yield AgentEvent(
                                 type="tool_end",
                                 data={
-                                    "tool": "tool",
+                                    "tool": getattr(m, "name", "tool"),
                                     "output": getattr(m, "content", ""),
                                 },
                             )
