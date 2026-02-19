@@ -1,0 +1,13 @@
+# Exclude large binary files to stay under 20MB context limit
+docs/工业级智能体记忆系统开发实践.pdf
+nanobot/case/
+nanobot/.git/
+*.gif
+*.mp4
+*.pack
+
+# IDE/tool caches
+.idea/
+.serena/cache/
+__pycache__/
+node_modules/
