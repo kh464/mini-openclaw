@@ -1,0 +1,46 @@
+# docker-compose.yml
+version: "3.8"
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./backend/workspace:/app/workspace
+      - ./backend/memory:/app/memory
+      - ./backend/skills:/app/skills
+      - ./backend/knowledge:/app/knowledge
+      - ./backend/sessions:/app/sessions
+      - ./backend/storage:/app/storage
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8002
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Optional: pgvector for vector storage
+  postgres:
+    image: pgvector/pgvector:pg16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: miniclaw
+      POSTGRES_USER: miniclaw
+      POSTGRES_PASSWORD: miniclaw123
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    profiles:
+      - pgvector
+
+volumes:
+  pgdata:
