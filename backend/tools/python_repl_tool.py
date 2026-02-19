@@ -29,7 +29,13 @@ def create_python_repl_tool() -> BaseTool:
         stdout = io.StringIO()
         try:
             with contextlib.redirect_stdout(stdout):
-                exec(code, {"__builtins__": SAFE_BUILTINS})
+                # Try eval first for expressions (e.g. "2+3"), then exec for statements
+                try:
+                    result = eval(code, {"__builtins__": SAFE_BUILTINS})
+                    if result is not None:
+                        print(result)
+                except SyntaxError:
+                    exec(code, {"__builtins__": SAFE_BUILTINS})
             output = stdout.getvalue().strip()
             if len(output) > MAX_OUTPUT:
                 output = output[:MAX_OUTPUT] + "\n...[truncated]"

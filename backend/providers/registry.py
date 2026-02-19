@@ -19,6 +19,7 @@ PROVIDERS: list[ProviderSpec] = [
         env_key="ZHIPUAI_API_KEY",
         display_name="\u667a\u8c31 GLM",
         default_model="glm-4-flash",
+        api_base_default="https://open.bigmodel.cn/api/paas/v4",
     ),
     ProviderSpec(
         name="deepseek",
@@ -89,23 +90,28 @@ def get_llm(cfg: AppConfig | None = None) -> BaseChatModel:
         "model": cfg.llm.model or spec.default_model,
         "temperature": cfg.llm.temperature,
         "max_tokens": cfg.llm.max_tokens,
-        "streaming": True,
     }
 
-    # API key
+    # API key — resolve from env or config
     api_key = None
     if spec.env_key:
         api_key = os.getenv(spec.env_key) or cfg.providers.get(spec.name, None)
         if api_key and hasattr(api_key, "api_key"):
             api_key = api_key.api_key
-        if isinstance(api_key, str) and api_key:
+
+    # Provider-specific key param names (e.g. ChatZhipuAI uses zhipuai_api_key)
+    if isinstance(api_key, str) and api_key:
+        if spec.name == "zhipu":
+            kwargs["zhipuai_api_key"] = api_key
+        else:
             kwargs["api_key"] = api_key
 
-    # API base
-    creds = cfg.providers.get(spec.name)
-    api_base = (creds.api_base if creds and creds.api_base else "") or spec.api_base_default
-    if api_base:
-        kwargs["base_url"] = api_base
+    # API base — not needed for zhipu (ChatZhipuAI handles its own endpoint)
+    if spec.name != "zhipu":
+        creds = cfg.providers.get(spec.name)
+        api_base = (creds.api_base if creds and creds.api_base else "") or spec.api_base_default
+        if api_base:
+            kwargs["base_url"] = api_base
 
     return cls(**kwargs)
 

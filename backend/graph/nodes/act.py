@@ -16,6 +16,10 @@ async def act_node(state: dict) -> dict:
             result = await tool.ainvoke(tc["args"])
         else:
             result = f"Error: unknown tool '{tc['name']}'"
-        messages.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
+        messages.append(ToolMessage(
+            content=str(result),
+            tool_call_id=tc["id"],
+            name=tc["name"],
+        ))
 
     return {"messages": messages, "iteration": state.get("iteration", 0) + 1}

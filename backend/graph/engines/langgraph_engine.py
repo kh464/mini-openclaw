@@ -97,6 +97,7 @@ class LangGraphEngine(BaseEngine):
 
         # Stream graph execution
         final_content = ""
+        seen_tool_msg_ids: set[str] = set()
         async for event in self.graph.astream(initial_state, stream_mode="updates"):
             for node_name, node_output in event.items():
                 if node_name == "retrieve" and node_output.get("retrieval_results"):
@@ -122,14 +123,17 @@ class LangGraphEngine(BaseEngine):
                                 )
 
                 if node_name == "act":
-                    # Tool results are in the messages
+                    # Only emit NEW ToolMessages (skip already-seen ones)
                     msgs = node_output.get("messages", [])
                     for m in msgs:
                         if isinstance(m, ToolMessage):
-                            yield AgentEvent(
-                                type="tool_end",
-                                data={"tool": getattr(m, "name", "tool"), "output": m.content},
-                            )
+                            msg_id = getattr(m, "tool_call_id", id(m))
+                            if msg_id not in seen_tool_msg_ids:
+                                seen_tool_msg_ids.add(msg_id)
+                                yield AgentEvent(
+                                    type="tool_end",
+                                    data={"tool": getattr(m, "name", "tool"), "output": m.content},
+                                )
                     yield AgentEvent(type="new_response", data={})
 
         yield AgentEvent(type="done", data={"content": final_content})
