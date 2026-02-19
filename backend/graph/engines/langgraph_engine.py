@@ -95,11 +95,116 @@ class LangGraphEngine(BaseEngine):
             "iteration": 0,
         }
 
-        # Stream graph execution
+        try:
+            async for event in self._stream_with_events(initial_state):
+                yield event
+        except Exception:
+            # Fallback to node-level streaming if astream_events fails
+            async for event in self._stream_with_updates(initial_state):
+                yield event
+
+    # Nodes whose LLM calls should NOT be streamed to the user
+    _INTERNAL_NODES = frozenset({"reflect", "memory_flush"})
+
+    async def _stream_with_events(
+        self, initial_state: AgentState
+    ) -> AsyncIterator[AgentEvent]:
+        """Real token-level streaming via astream_events."""
+        current_parts: list[str] = []
+        final_content = ""
+        had_tool_execution = False
+        done_sent = False
+
+        async for event in self.graph.astream_events(initial_state, version="v2"):
+            kind = event["event"]
+            # Skip LLM events from internal nodes (reflect, memory_flush)
+            node = event.get("metadata", {}).get("langgraph_node", "")
+
+            # Emit done early when internal nodes start — user-facing content is complete
+            if node in self._INTERNAL_NODES and not done_sent:
+                yield AgentEvent(type="done", data={"content": final_content})
+                done_sent = True
+                continue
+
+            if done_sent:
+                continue  # Skip all remaining events from internal nodes
+
+            if kind == "on_chat_model_stream":
+                chunk = event["data"]["chunk"]
+                content = getattr(chunk, "content", "")
+                if isinstance(content, str) and content:
+                    if had_tool_execution:
+                        yield AgentEvent(type="new_response", data={})
+                        had_tool_execution = False
+                    yield AgentEvent(type="token", data={"content": content})
+                    current_parts.append(content)
+
+            elif kind == "on_chat_model_end":
+                output = event["data"]["output"]
+                # Fallback: if no streaming tokens were captured, yield full content
+                if not current_parts:
+                    content = getattr(output, "content", "")
+                    if content:
+                        if had_tool_execution:
+                            yield AgentEvent(type="new_response", data={})
+                            had_tool_execution = False
+                        yield AgentEvent(type="token", data={"content": content})
+                        current_parts.append(content)
+
+                final_content = "".join(current_parts)
+                current_parts.clear()
+
+                # Check for tool calls
+                if hasattr(output, "tool_calls") and output.tool_calls:
+                    for tc in output.tool_calls:
+                        yield AgentEvent(
+                            type="tool_start",
+                            data={"tool": tc["name"], "input": tc.get("args", {})},
+                        )
+
+            elif kind == "on_tool_end":
+                tool_name = event.get("name", "tool")
+                output = event["data"].get("output", "")
+                yield AgentEvent(
+                    type="tool_end",
+                    data={"tool": tool_name, "output": str(output)},
+                )
+                had_tool_execution = True
+
+            elif kind == "on_retriever_end":
+                docs = event["data"].get("output", [])
+                if docs:
+                    yield AgentEvent(
+                        type="retrieval",
+                        data={
+                            "results": [
+                                {"text": d.page_content, "score": d.metadata.get("score", 0)}
+                                for d in docs[:3]
+                            ]
+                        },
+                    )
+
+        if not done_sent:
+            yield AgentEvent(type="done", data={"content": final_content})
+
+    async def _stream_with_updates(
+        self, initial_state: AgentState
+    ) -> AsyncIterator[AgentEvent]:
+        """Fallback: node-level streaming (no token-by-token, but still functional)."""
         final_content = ""
         seen_tool_msg_ids: set[str] = set()
+        done_sent = False
         async for event in self.graph.astream(initial_state, stream_mode="updates"):
             for node_name, node_output in event.items():
+                # Emit done early when internal nodes start
+                if node_name in self._INTERNAL_NODES and not done_sent:
+                    yield AgentEvent(type="done", data={"content": final_content})
+                    done_sent = True
+                    continue
+
+                if done_sent:
+                    continue
+
                 if node_name == "retrieve" and node_output.get("retrieval_results"):
                     yield AgentEvent(
                         type="retrieval",
@@ -123,7 +228,6 @@ class LangGraphEngine(BaseEngine):
                                 )
 
                 if node_name == "act":
-                    # Only emit NEW ToolMessages (skip already-seen ones)
                     msgs = node_output.get("messages", [])
                     for m in msgs:
                         if isinstance(m, ToolMessage):
@@ -136,4 +240,5 @@ class LangGraphEngine(BaseEngine):
                                 )
                     yield AgentEvent(type="new_response", data={})
 
-        yield AgentEvent(type="done", data={"content": final_content})
+        if not done_sent:
+            yield AgentEvent(type="done", data={"content": final_content})

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useReducer, useCallback, ReactNode } from "react";
+import React, { createContext, useContext, useReducer, useCallback, useRef, ReactNode } from "react";
 import * as api from "./api";
 
 // Types
@@ -100,7 +100,10 @@ interface StoreContextValue {
   loadSessions: () => Promise<void>;
   selectSession: (id: string) => Promise<void>;
   createNewSession: () => Promise<void>;
+  deleteSession: (id: string) => Promise<void>;
+  renameSession: (id: string, title: string) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
+  resendMessage: (content: string) => Promise<void>;
   loadConfig: () => Promise<void>;
 }
 
@@ -108,6 +111,9 @@ const StoreContext = createContext<StoreContextValue | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+
+  // Track which session the current stream belongs to
+  const streamSessionRef = useRef<string | null>(null);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -119,6 +125,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const selectSession = useCallback(async (id: string) => {
+    // If streaming to a different session, detach the stream (it continues in background)
+    if (streamSessionRef.current && streamSessionRef.current !== id) {
+      streamSessionRef.current = null;
+      dispatch({ type: "SET_STREAMING", isStreaming: false });
+    }
+
     dispatch({ type: "SET_ACTIVE_SESSION", sessionId: id });
     try {
       const msgs = await api.getMessages(id);
@@ -126,6 +138,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         id: `${id}-${i}`,
         role: m.role as "user" | "assistant",
         content: m.content,
+        thoughtChain: m.thought_chain?.map((tc: any) => ({
+          type: tc.type,
+          tool: tc.tool,
+          input: tc.input,
+          output: tc.output,
+          results: tc.results,
+        })),
       }));
       dispatch({ type: "SET_MESSAGES", messages: chatMsgs });
     } catch (err) {
@@ -144,9 +163,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [loadSessions]);
 
+  const deleteSession = useCallback(async (id: string) => {
+    try {
+      await api.deleteSession(id);
+      if (state.activeSessionId === id) {
+        dispatch({ type: "SET_ACTIVE_SESSION", sessionId: null });
+        dispatch({ type: "SET_MESSAGES", messages: [] });
+      }
+      await loadSessions();
+    } catch (err) {
+      console.error("Failed to delete session:", err);
+    }
+  }, [loadSessions, state.activeSessionId]);
+
+  const renameSession = useCallback(async (id: string, title: string) => {
+    try {
+      await api.renameSession(id, title);
+      await loadSessions();
+    } catch (err) {
+      console.error("Failed to rename session:", err);
+    }
+  }, [loadSessions]);
+
   const sendMessage = useCallback(
     async (content: string) => {
       if (!state.activeSessionId || state.isStreaming) return;
+
+      const sessionId = state.activeSessionId;
+      streamSessionRef.current = sessionId;
 
       // Add user message
       const userMsg: ChatMessage = {
@@ -168,7 +212,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       try {
         let fullContent = "";
-        for await (const event of api.streamChat(content, state.activeSessionId)) {
+        for await (const event of api.streamChat(content, sessionId)) {
+          // If session switched away, stop dispatching to UI
+          if (streamSessionRef.current !== sessionId) continue;
+
           switch (event.type) {
             case "token":
               fullContent += event.content || "";
@@ -193,21 +240,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               });
               break;
             case "new_response":
-              // Keep accumulated content; new tokens will append to it
+              break;
+            case "title_generated":
+              loadSessions();
               break;
             case "done":
+              // Unlock input — user-facing content is complete
+              dispatch({ type: "SET_STREAMING", isStreaming: false });
               break;
           }
         }
       } catch (err) {
         console.error("Stream error:", err);
-        dispatch({ type: "UPDATE_LAST_MESSAGE", content: "Error: Failed to get response." });
+        if (streamSessionRef.current === sessionId) {
+          dispatch({ type: "UPDATE_LAST_MESSAGE", content: "Error: Failed to get response." });
+        }
       } finally {
-        dispatch({ type: "SET_STREAMING", isStreaming: false });
-        loadSessions(); // Refresh session list
+        if (streamSessionRef.current === sessionId) {
+          dispatch({ type: "SET_STREAMING", isStreaming: false });
+          streamSessionRef.current = null;
+        }
+        loadSessions();
       }
     },
     [state.activeSessionId, state.isStreaming, loadSessions]
+  );
+
+  const resendMessage = useCallback(
+    async (content: string) => {
+      if (!state.activeSessionId || state.isStreaming) return;
+      await sendMessage(content);
+    },
+    [state.activeSessionId, state.isStreaming, sendMessage]
   );
 
   const loadConfig = useCallback(async () => {
@@ -221,7 +285,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   return (
     <StoreContext.Provider
-      value={{ state, dispatch, loadSessions, selectSession, createNewSession, sendMessage, loadConfig }}
+      value={{ state, dispatch, loadSessions, selectSession, createNewSession, deleteSession, renameSession, sendMessage, resendMessage, loadConfig }}
     >
       {children}
     </StoreContext.Provider>

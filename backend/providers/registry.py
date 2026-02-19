@@ -18,8 +18,10 @@ PROVIDERS: list[ProviderSpec] = [
         llm_class="langchain_community.chat_models.ChatZhipuAI",
         env_key="ZHIPUAI_API_KEY",
         display_name="\u667a\u8c31 GLM",
-        default_model="glm-4-flash",
+        default_model="glm-4.7-flash",
         api_base_default="https://open.bigmodel.cn/api/paas/v4",
+        manages_own_base=True,
+        api_key_alias="zhipuai_api_key",
     ),
     ProviderSpec(
         name="deepseek",
@@ -101,13 +103,11 @@ def get_llm(cfg: AppConfig | None = None) -> BaseChatModel:
 
     # Provider-specific key param names (e.g. ChatZhipuAI uses zhipuai_api_key)
     if isinstance(api_key, str) and api_key:
-        if spec.name == "zhipu":
-            kwargs["zhipuai_api_key"] = api_key
-        else:
-            kwargs["api_key"] = api_key
+        key_param = spec.api_key_alias or "api_key"
+        kwargs[key_param] = api_key
 
-    # API base — not needed for zhipu (ChatZhipuAI handles its own endpoint)
-    if spec.name != "zhipu":
+    # API base — some SDKs manage their own endpoint (e.g. ChatZhipuAI)
+    if not spec.manages_own_base:
         creds = cfg.providers.get(spec.name)
         api_base = (creds.api_base if creds and creds.api_base else "") or spec.api_base_default
         if api_base:

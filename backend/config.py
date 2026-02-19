@@ -14,7 +14,7 @@ _DEFAULT_CONFIG_PATH = _BASE_DIR / "config.json"
 
 class LLMConfig(BaseModel):
     provider: str = "zhipu"
-    model: str = "glm-4-flash"
+    model: str = "glm-4.7-flash"
     temperature: float = 0.7
     max_tokens: int = 4096
 

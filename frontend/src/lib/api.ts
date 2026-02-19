@@ -21,6 +21,7 @@ export interface Message {
   role: "user" | "assistant" | "system";
   content: string;
   tool_calls?: any[];
+  thought_chain?: any[];
 }
 
 export interface SSEEvent {

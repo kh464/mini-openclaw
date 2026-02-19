@@ -48,11 +48,15 @@ class SessionManager:
             })
         return merged
 
-    def save_message(self, sid: str, role: str, content: str, tool_calls: list | None = None):
+    def save_message(self, sid: str, role: str, content: str,
+                     tool_calls: list | None = None,
+                     thought_chain: list | None = None):
         data = self._read(sid)
         msg: dict = {"role": role, "content": content}
         if tool_calls:
             msg["tool_calls"] = tool_calls
+        if thought_chain:
+            msg["thought_chain"] = thought_chain
         data["messages"].append(msg)
         data["updated_at"] = time.time()
         self._write(sid, data)

@@ -10,3 +10,11 @@ dist/
 build/
 .next/
 nul
+
+# Runtime data (sessions, memory logs)
+backend/sessions/
+backend/memory/
+backend/config.json
+
+# Reference code (not part of this project)
+nanobot/

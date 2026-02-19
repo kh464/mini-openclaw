@@ -4,109 +4,63 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**nanobot** is an ultra-lightweight personal AI assistant (~4,000 lines of core agent code) inspired by OpenClaw. The main source code lives in the `nanobot/` subdirectory (which is also a standalone Python package). Python 3.11+ required.
+**Mini-OpenClaw** is a full-stack AI Agent teaching/research project. Backend is FastAPI + LangGraph, frontend is Next.js 14 + Tailwind. Python 3.12+, Node.js 18+.
 
 ## Common Commands
 
-All commands should be run from the `nanobot/` subdirectory.
-
-### Install (development)
+### Backend
 ```bash
-cd nanobot
-pip install -e .
+cd backend
+pip install -r requirements.txt
+python -m uvicorn app:app --host 0.0.0.0 --port 8002
+pytest tests/ -v                    # 65 tests
+pytest tests/test_api_chat.py -v    # Single file
 ```
 
-### Run
+### Frontend
 ```bash
-nanobot onboard           # Initialize config & workspace
-nanobot agent             # Interactive chat mode
-nanobot agent -m "..."    # Single message mode
-nanobot gateway           # Start chat channel gateway
-nanobot status            # Show system status
-```
-
-### Test
-```bash
-cd nanobot
-pytest tests/                        # Run all tests
-pytest tests/test_commands.py        # Run a single test file
-pytest tests/test_commands.py -k "test_onboard_fresh"  # Run a single test
-```
-Tests use `pytest` with `pytest-asyncio` (asyncio_mode = "auto"). Test directory: `nanobot/tests/`.
-
-### Lint
-```bash
-cd nanobot
-ruff check nanobot/       # Lint
-ruff format nanobot/      # Format
-```
-Ruff config: line-length 100, target Python 3.11, rules E/F/I/N/W, E501 ignored.
-
-### Docker
-```bash
-cd nanobot
-docker build -t nanobot .
-docker run -v ~/.nanobot:/root/.nanobot --rm nanobot agent -m "Hello!"
-```
-
-### Verify core line count
-```bash
-cd nanobot
-bash core_agent_lines.sh
+cd frontend
+npm install
+npm run dev        # http://localhost:3000
+npm run build      # Production build
 ```
 
 ## Architecture
 
-### Processing Flow
-```
-InboundMessage → MessageBus → AgentLoop → LLM call → Tool execution → OutboundMessage
-```
+Three interchangeable agent engines, all sharing the same tools, memory, and session system:
 
-The **AgentLoop** (`nanobot/nanobot/agent/loop.py`) is the central engine. Each iteration: receive message → build context (system prompt + history + memory + skills) → call LLM → parse/execute tool calls → send response. Max 20 iterations per turn by default.
+1. **LangGraph Engine** (`graph/engines/langgraph_engine.py`) — 5-node StateGraph: retrieve → reason → act → reflect → memory_flush. Uses `astream_events(version="v2")` for real token streaming, with `_stream_with_updates` fallback.
 
-### Key Modules
+2. **CreateAgent Engine** (`graph/engines/create_agent_engine.py`) — LangGraph prebuilt `create_react_agent`. Same `astream_events` streaming.
 
-| Module | Path | Role |
-|--------|------|------|
-| **AgentLoop** | `agent/loop.py` | Core loop: LLM calls, tool dispatch, streaming |
-| **ContextBuilder** | `agent/context.py` | Assembles system prompt from bootstrap files (AGENTS.md, SOUL.md, USER.md, TOOLS.md), memory, skills |
-| **ToolRegistry** | `agent/tools/registry.py` | Dynamic tool registration, schema for LLM |
-| **Tool base** | `agent/tools/base.py` | Base class with `name`, `description`, `parameters` (JSON schema), `execute()` |
-| **MemoryStore** | `agent/memory.py` | Persistent memory via `workspace/memory/MEMORY.md` |
-| **SkillsLoader** | `agent/skills.py` | Scans skills dirs, loads SKILL.md with YAML frontmatter |
-| **SubagentManager** | `agent/subagent.py` | Spawns background tasks with independent context |
-| **SessionManager** | `session/manager.py` | Conversation sessions with history window (default 50) |
-| **MessageBus** | `bus/queue.py` | Routes InboundMessage/OutboundMessage between channels and agent |
-| **ChannelManager** | `channels/manager.py` | Orchestrates all chat integrations |
-| **ProviderRegistry** | `providers/registry.py` | Single source of truth for LLM providers (PROVIDERS constant) |
-| **Config** | `config/schema.py` + `config/loader.py` | Pydantic v2 config from `~/.nanobot/config.json` |
-| **CronService** | `cron/service.py` | Scheduled task execution |
-| **HeartbeatService** | `heartbeat/service.py` | Checks HEARTBEAT.md every 30 min, spawns tasks |
+3. **RawLoop Engine** (`graph/engines/raw_loop_engine.py`) — ~100-line while-loop with streaming HTTP SSE parsing, no LangChain dependency.
 
-All paths above are relative to `nanobot/nanobot/`.
+### Key Entry Points
 
-### Built-in Tools
-`filesystem.py` (read/write/edit/list_dir), `shell.py` (exec), `web.py` (search/fetch), `message.py`, `spawn.py`, `cron.py`, `mcp.py`. All extend `Tool` base class in `tools/base.py`.
+- `backend/app.py` — FastAPI app with lifespan, `load_dotenv()` before config imports
+- `backend/graph/agent.py` — `AgentManager` dispatches to engines, builds tools
+- `backend/providers/registry.py` — `get_llm()` / `get_embeddings()`, provider-specific handling via `ProviderSpec.manages_own_base` and `api_key_alias`
+- `backend/api/chat.py` — SSE streaming endpoint with auto title generation
+- `frontend/src/lib/store.tsx` — Global state with useReducer, SSE event handling
 
-### Chat Channels
-Each in `channels/`: telegram, discord, whatsapp, feishu, dingtalk, slack, email, qq, mochat. All extend `BaseChannel`. WhatsApp requires a separate Node.js bridge (`nanobot/bridge/`).
+### Provider Specifics
 
-### LLM Providers
-Adding a new provider takes 2 steps:
-1. Add `ProviderSpec` to `PROVIDERS` in `providers/registry.py`
-2. Add field to `ProvidersConfig` in `config/schema.py`
+- **ChatZhipuAI**: Uses `zhipuai_api_key` (not `api_key`), manages its own API endpoint (don't pass `base_url`). Set via `ProviderSpec(manages_own_base=True, api_key_alias="zhipuai_api_key")`.
+- **OpenAI-compatible** (DeepSeek, OpenRouter, SiliconFlow): Use `ChatOpenAI` with `base_url`.
 
-Most providers use LiteLLM. Special cases: `custom_provider.py` (direct OpenAI-compatible), `openai_codex_provider.py` (OAuth).
+### Streaming Architecture
 
-### Skills System
-Skills are directories containing a `SKILL.md` with YAML frontmatter. Built-in skills: `nanobot/nanobot/skills/`. User skills: `~/.nanobot/skills/`. Skills are lazy-loaded — only their summaries appear in context until invoked.
+All engines emit `AgentEvent` objects (type: token/tool_start/tool_end/new_response/retrieval/done). The LangGraph engine filters out `reflect` and `memory_flush` node LLM events via `_INTERNAL_NODES` to prevent memory extraction JSON from leaking into the response.
 
-### MCP Integration
-MCP servers configured in `config.json` under `tools.mcpServers`. Supports stdio (command+args) and HTTP (url) transports. Tools auto-discovered and registered alongside built-in tools.
+### Security
 
-### Configuration
-Config lives at `~/.nanobot/config.json`. Pydantic v2 schema in `config/schema.py`. Supports both camelCase and snake_case keys. Workspace files at `~/.nanobot/workspace/` (AGENTS.md, SOUL.md, USER.md, TOOLS.md, HEARTBEAT.md, memory/).
+- Python REPL: `SAFE_BUILTINS` allowlist, eval-first then exec fallback
+- Terminal: `ALLOWED_COMMANDS` allowlist
+- Session IDs: regex-validated `^[a-f0-9]{12}$`
+- Token file paths: `.resolve()` + `startswith()` traversal prevention
 
-## Build System
+## Directory Layout
 
-Uses **hatchling** (PEP 517). Package published to PyPI as `nanobot-ai`. Non-Python files (skills `.md`/`.sh`) are included via hatch build config. The WhatsApp bridge is force-included in the wheel.
+- `backend/sessions/` and `backend/memory/` are runtime data (gitignored)
+- `backend/config.json` is auto-generated from defaults (gitignored)
+- `docs/` and `nanobot/` are pre-development reference materials

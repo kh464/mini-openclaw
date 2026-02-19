@@ -74,9 +74,21 @@ async def set_rag_mode(req: RagModeUpdate, request: Request):
 @router.post("/memory/flush")
 async def flush_memory(request: Request):
     """Manually trigger memory flush (Daily Logs -> MEMORY.md)."""
+    from pathlib import Path
+    from memory.native.daily_log import DailyLog
+    from memory.native.knowledge import KnowledgeStore
+    from memory.native.flush import flush_memories
+
     am = request.app.state.agent_manager
-    # This would be implemented with the memory backend
-    return {"status": "flush triggered", "backend": am.config.memory_backend}
+    if not am.llm:
+        raise HTTPException(status_code=503, detail="LLM not initialized")
+
+    base_dir: Path = request.app.state.base_dir
+    daily_log = DailyLog(base_dir / "memory" / "logs")
+    knowledge = KnowledgeStore(base_dir / "memory" / "MEMORY.md")
+
+    result = await flush_memories(am.llm, daily_log, knowledge)
+    return {"status": "flushed", "content": result}
 
 
 # Daily logs listing
