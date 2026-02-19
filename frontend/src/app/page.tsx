@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import ChatPanel from "@/components/chat/ChatPanel";
 import ResizeHandle from "@/components/layout/ResizeHandle";
+import InspectorPanel from "@/components/editor/InspectorPanel";
 import { useStore } from "@/lib/store";
 
 export default function Home() {
@@ -36,14 +37,13 @@ export default function Home() {
         <ChatPanel />
       </div>
 
-      {/* Right: Inspector (placeholder — implemented in Task 22) */}
+      {/* Right: Inspector */}
       <ResizeHandle onResize={handleInspectorResize} />
       <div
         style={{ width: inspectorWidth, flexShrink: 0 }}
-        className="glass border-l border-gray-200/50 p-4 overflow-y-auto"
+        className="border-l border-gray-200/50"
       >
-        <h3 className="text-sm font-semibold text-gray-500 mb-2">Inspector</h3>
-        <p className="text-xs text-gray-400">File editor and token stats (Task 22)</p>
+        <InspectorPanel />
       </div>
     </div>
   );
