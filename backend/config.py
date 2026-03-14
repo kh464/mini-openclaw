@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 _BASE_DIR = Path(__file__).resolve().parent
 _DEFAULT_CONFIG_PATH = _BASE_DIR / "config.json"
 
+# 详细中文注释
 
 class LLMConfig(BaseModel):
     provider: str = "zhipu"
