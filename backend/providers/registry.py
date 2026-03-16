@@ -143,8 +143,6 @@ def get_llm(cfg: AppConfig | None = None) -> BaseChatModel:
     # max_tokens: 最大生成 token 数，默认 1024
     # api_key: API 密钥，根据供应商不同有不同参数名（如 zhipuai_api_key）
     # base_url: API 基础地址，如 "https://api.siliconflow.cn/v1"
-    # temperature: 生成温度，0-2 之间，默认 0.7
-    # max_tokens: 最大生成 token 数，默认 1024
     return cls(**kwargs)
 
 
