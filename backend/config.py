@@ -62,7 +62,7 @@ def save_config(cfg: AppConfig, path: Path = _DEFAULT_CONFIG_PATH) -> None:
     )
 
 
-# Singleton — imported by other modules
+# Singleton — imported by other modules 单例是否只加载一次
 config = load_config()
 """
     单例模式: 这一行在模块加载时立即执行 load_config()。由于 Python 模块导入的特性，其他模块（如 app.py 或 agent.py）通过 from backend.config import config 

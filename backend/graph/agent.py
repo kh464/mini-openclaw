@@ -29,10 +29,10 @@ class AgentManager:
         self.config = config or load_config()    # 如果没传配置，则加载默认配置
         self.llm = None                          # 初始化时 LLM 为空，待 initialize 调用
         self.tools = []                          # 初始化时工具列表为空
-        self.session_manager = SessionManager(self.base_dir / "sessions") # 会话管理
-        self.prompt_builder = PromptBuilder(self.base_dir)                # 提示词构建
+        self.session_manager = SessionManager(self.base_dir / "sessions") # 会话管理  需要详细阅读
+        self.prompt_builder = PromptBuilder(self.base_dir)                # 提示词构建  需要详细阅读
 
-    def initialize(self):
+    def initialize(self):    #整个程序生命周期只调用一次，用于初始化 LLM、工具、扫描技能等
         """
         启动初始化：这是“重型”任务区，只在服务启动时运行一次。
         1. 扫描 skills 文件夹，生成最新的能力快照文件。
@@ -44,7 +44,7 @@ class AgentManager:
         self.llm = get_llm(self.config)      # 根据配置获取 LLM 实例（如智谱、OpenAI 等）
         self.tools = get_all_tools(self.base_dir) # 加载所有可用的工具（Weather, Python REPL 等）
 
-    def _get_engine(self) -> BaseEngine:
+    def _get_engine(self) -> BaseEngine:    #根据配置返回不同的引擎（如 LangGraph、CreateAgent、RawLoop 等）
         #背景：AI 领域发展极快。今天可能流行 LangGraph（图编排），明天可能流行简单的 ReAct 循环。
         """工业价值：通过这个方法，开发者可以在不改动核心业务代码（如 app.py 或 api/chat.py）的情况下，
         通过修改 config.json 里的一个字符串，就彻底更换整个 AI 的运行逻辑。"""
@@ -66,7 +66,7 @@ class AgentManager:
             memory_dir: 传递了 memory/ 路径，用于实现长期记忆（持久化状态）。
             """
             from graph.engines.langgraph_engine import LangGraphEngine
-            return LangGraphEngine(
+            return LangGraphEngine(      #需要详细阅读 LangGraphEngine 类的文档
                 llm=self.llm,
                 tools=self.tools,
                 memory_dir=str(self.base_dir / "memory"),
@@ -81,7 +81,7 @@ class AgentManager:
             优势：开发速度快，代码简洁。
             """
             from graph.engines.create_agent_engine import CreateAgentEngine
-            return CreateAgentEngine(llm=self.llm, tools=self.tools)
+            return CreateAgentEngine(llm=self.llm, tools=self.tools)    #需要详细阅读 CreateAgentEngine 类的文档
         elif engine_name == "raw_loop":
             """
             这是本项目中最能体现底层控制力的部分。它绕过了 LangChain 的 Agent 封装，直接手动写 HTTP 请求循环。
@@ -97,7 +97,7 @@ class AgentManager:
             # Build OpenAI-format tool schemas from LangChain tools
             tool_schemas = [_lc_tool_to_openai_schema(t) for t in self.tools]
             tool_executor = {t.name: t.ainvoke for t in self.tools}
-            return RawLoopEngine(
+            return RawLoopEngine(      #需要详细阅读 RawLoopEngine 类的文档
                 api_base=self._get_api_base(),
                 api_key=self._get_api_key(),
                 model=self.config.llm.model,
@@ -127,17 +127,17 @@ class AgentManager:
         history = self.session_manager.load_session_for_agent(session_id)
         system_prompt = self.prompt_builder.build(rag_mode=self.config.rag_mode)
         engine = self._get_engine()
-
-        async for event in engine.astream(message, history, system_prompt):
+        #这里的astream和上面的astream方法是不同的，这里的astream是异步的，而上面的astream是同步的
+        async for event in engine.astream(message, history, system_prompt):  #astream 方法返回一个异步迭代器，用于流式产出事件
             yield event   # 逐条产出事件，前端可以实时接收
 
-    def _get_api_base(self) -> str:
+    def _get_api_base(self) -> str:    #根据配置返回 API Base URL
         from providers.registry import get_provider_spec
         spec = get_provider_spec(self.config.llm.provider)
         creds = self.config.providers.get(self.config.llm.provider)
         return (creds.api_base if creds and creds.api_base else "") or (spec.api_base_default if spec else "")
 
-    def _get_api_key(self) -> str:
+    def _get_api_key(self) -> str:    #根据配置返回 API Key
         import os
         from providers.registry import get_provider_spec
         spec = get_provider_spec(self.config.llm.provider)
@@ -146,7 +146,7 @@ class AgentManager:
         return ""
 
 
-def _lc_tool_to_openai_schema(tool) -> dict:
+def _lc_tool_to_openai_schema(tool) -> dict:    #将 LangChain 工具对象转换为 OpenAI 格式的的 JSON Schema
     """
     详细讲解协议转换：
     
