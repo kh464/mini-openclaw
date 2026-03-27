@@ -116,7 +116,7 @@ class AgentManager:
            确保智能体拥有“短期记忆”。
            
         2. 构建环境：调用 PromptBuilder 拼接 SOUL, IDENTITY, SKILLS_SNAPSHOT 等文件，
-           生成当前的 System Prompt。如果配置开启了 RAG，还会触发知识库检索。
+           构建环境：调用 PromptBuilder 拼接 SOUL, IDENTITY, SKILLS_SNAPSHOT 等文件，
            
         3. 引擎适配：调用 _get_engine()。这体现了工业级的策略模式，
            无论底层是用 LangGraph 还是原生循环，对外界暴露的都是统一的 astream 接口。

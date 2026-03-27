@@ -47,11 +47,13 @@ def create_terminal_tool(root_dir: str) -> BaseTool:
         if base_cmd not in ALLOWED_COMMANDS:
             return f"Blocked: command '{base_cmd}' is not in the allowed list. Allowed: {', '.join(sorted(ALLOWED_COMMANDS))}"
         try:
+            # 运行命令
             result = subprocess.run(
                 command, shell=True, capture_output=True, text=True,
                 timeout=TIMEOUT, cwd=str(root),
             )
             output = (result.stdout + result.stderr).strip()
+            # 限制输出长度
             if len(output) > MAX_OUTPUT:
                 output = output[:MAX_OUTPUT] + "\n...[truncated]"
             return output or "(no output)"

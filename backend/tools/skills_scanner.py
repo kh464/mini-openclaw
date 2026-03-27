@@ -21,6 +21,8 @@ def scan_skills(skills_dir: str | Path) -> list[dict]:
 
 
 def _parse_frontmatter(text: str) -> dict | None:
+    """Parse frontmatter from SKILL.md file. Returns a dict or None."""
+    # 匹配 "---" 开头和结尾的文本块
     match = re.match(r"^---\s*\n(.*?)\n---", text, re.DOTALL)
     if not match:
         return None
@@ -44,7 +46,7 @@ def generate_snapshot(skills: list[dict]) -> str:
     lines.append("</available_skills>")
     return "\n".join(lines)
 
-
+# 添加详细注释，说明函数参数和返回值
 def write_snapshot(base_dir: str | Path) -> str:
     """Scan skills and write SKILLS_SNAPSHOT.md. Returns the content."""
     base = Path(base_dir)
